@@ -27,5 +27,23 @@ O ambiente é composto por dois serviços:
 
 1. **Clone o repositório:**
    ```bash
-   git clone 
-   cd 
+   git clone https://github.com/Antonio-Elvis-Dev/locadora-api
+   cd locadora-api
+
+2. crie o arquivo .env com o nome das environments presentes no .env.exemple
+
+3. Execute o docker
+   
+   Após garantir que o docker está funcionando execute:
+    - docker-compose up --build -d
+    e 
+    - docker-compose ps
+    para verificar se o nosso serviço da aplicação está funcionado. 
+
+4. Após é só fazer as devidas requisições para a nossa API
+
+    - GET -> /movies
+    - GET -> /movies/{id}
+    - POST -> /movies => precisa de title - director - year 
+    - PUT -> /movies/${id} => precisa de title - director - year 
+    - DELETE -> /movies/${id}
