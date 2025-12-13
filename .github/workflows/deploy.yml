@@ -1,29 +1,127 @@
-provision_infra:
-  name: Provision Infra with Terraform
-  needs: test
-  runs-on: ubuntu-latest
-  env:
-    TF_TOKEN_app_terraform_io: ${{ secrets.TF_TOKEN_app_terraform_io }}
+# name: CI/CD Pipeline
 
-  steps:
-    - uses: actions/checkout@v3
+# on:
+#   push:
+#     branches:
+#       - main
 
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
-      with:
-        terraform_version: 1.5.8
+# jobs:
+#   # (Se tiver testes, mantenha o job de testes aqui)
 
-    - name: Debug TF token presence
-      run: |
-        if [ -z "${TF_TOKEN_app_terraform_io:-}" ]; then
-          echo "TF token NOT FOUND"
-          exit 1
-        else
-          echo "TF token FOUND"
-        fi
+#   deploy_app:
+#     name: Deploy Application
+#     runs-on: ubuntu-latest
+   
+#     steps:
+#       - uses: actions/checkout@v3
 
-    - name: Terraform Init
-      run: terraform -chdir=terraform init
+#       - name: Login to Docker Hub
+#         uses: docker/login-action@v2
+#         with:
+#           username: ${{ secrets.DOCKER_USERNAME }}
+#           password: ${{ secrets.DOCKER_PASSWORD }}
 
-    - name: Terraform Apply
-      run: terraform -chdir=terraform apply -auto-approve
+     
+#       - name: Build and Push Docker Image
+#         run: |
+#           docker build -t elvinhokj/locadora-api:latest .
+#           docker push elvinhokj/locadora-api:latest
+         
+
+#       - name: Copy files to server
+#         uses: appleboy/scp-action@v0.1.4
+#         with:
+#           host: ${{ secrets.SERVER_IP }}
+#           username: root
+#           key: ${{ secrets.SSH_PRIVATE_KEY }}
+#           source: "."
+#           target: "/root/locadora-api"
+
+#       - name: Execute Remote Deploy
+#         uses: appleboy/ssh-action@v1.0.0
+#         with:
+#           host: ${{ secrets.SERVER_IP }}
+#           username: root
+#           key: ${{ secrets.SSH_PRIVATE_KEY }}
+#           script: |
+#             cd /root/locadora-api
+#             # Garante que o Docker está rodando (via user_data do terraform)
+#             docker-compose down
+#             docker-compose up -d --build
+
+
+
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy_app:
+    name: Deploy Application
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+
+      # 1. Login no Docker Hub
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # 2. Construir e Enviar para o Docker Hub
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: elvinhokj/locadora-api:latest
+
+      # 3. Copiar APENAS o docker-compose.yml para o servidor
+      # (Não precisamos do código todo, pois a imagem já está no Hub)
+      - name: Copy docker-compose to server
+        uses: appleboy/scp-action@v0.1.4
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "docker-compose.yml"
+          target: "/root/locadora-api"
+
+      # 4. Conectar no Servidor e Atualizar via Docker Hub
+      - name: Execute Remote Deploy
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          # Passamos as variáveis para criar o .env lá dentro
+          envs: DB_USER,DB_PASSWORD,DB_NAME,DB_HOST,DB_PORT
+        env:
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_HOST: "db"
+          DB_PORT: "5432"
+        script: |
+          cd /root/locadora-api
+          
+          # Recria o arquivo .env com as variáveis seguras
+          echo "DB_USER=$DB_USER" > .env
+          echo "DB_PASSWORD=$DB_PASSWORD" >> .env
+          echo "DB_NAME=$DB_NAME" >> .env
+          echo "DB_HOST=$DB_HOST" >> .env
+          echo "DB_PORT=$DB_PORT" >> .env
+          
+          # Baixa a versão mais recente da imagem do Docker Hub
+          docker-compose pull
+          
+          # Reinicia os containers (sem --build, pois usamos a imagem baixada)
+          docker-compose up -d --remove-orphans
+          
+          # Limpeza opcional de imagens antigas para não encher o disco
+          docker image prune -f
