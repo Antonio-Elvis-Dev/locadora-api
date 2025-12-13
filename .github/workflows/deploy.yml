@@ -1,0 +1,29 @@
+provision_infra:
+  name: Provision Infra with Terraform
+  needs: test
+  runs-on: ubuntu-latest
+  env:
+    TF_TOKEN_app_terraform_io: ${{ secrets.TF_TOKEN_app_terraform_io }}
+
+  steps:
+    - uses: actions/checkout@v3
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: 1.5.8
+
+    - name: Debug TF token presence
+      run: |
+        if [ -z "${TF_TOKEN_app_terraform_io:-}" ]; then
+          echo "TF token NOT FOUND"
+          exit 1
+        else
+          echo "TF token FOUND"
+        fi
+
+    - name: Terraform Init
+      run: terraform -chdir=terraform init
+
+    - name: Terraform Apply
+      run: terraform -chdir=terraform apply -auto-approve

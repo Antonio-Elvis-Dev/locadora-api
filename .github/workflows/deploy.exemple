@@ -1,0 +1,90 @@
+name: CI/CD - Terraform + Docker + Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: Run Go Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Install dependencies
+        run: go mod tidy
+
+      - name: Run tests
+        run: go test ./...
+
+  provision_infra:
+    name: Provision Infra with Terraform
+    needs: test
+    runs-on: ubuntu-latest
+
+    outputs:
+      droplet_ip: ${{ steps.tf_output.outputs.ip }}
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform -chdir=terraform init
+
+      - name: Terraform Apply
+        run: terraform -chdir=terraform apply -auto-approve
+        env:
+          TF_TOKEN_APP_TERRAFORM_IO: ${{ secrets.TF_TOKEN_APP_TERRAFORM_IO }}
+
+      - name: Get Droplet IP
+        id: tf_output
+        run: |
+          IP=$(terraform -chdir=terraform output -raw public_ip)
+          echo "ip=$IP" >> $GITHUB_OUTPUT
+
+  build_and_push:
+    name: Build & Push Docker image
+    needs: provision_infra
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build image
+        run: docker build -t elvinhokj/locadoraapi:${{ github.sha }} .
+
+      - name: Push image
+        run: docker push elvinhokj/locadoraapi:${{ github.sha }}
+
+  deploy:
+    name: Deploy on VPS
+    needs: build_and_push
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v0.1.6
+        with:
+          host: ${{ needs.provision_infra.outputs.droplet_ip }}
+          username: root
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            cd /root/locadora-api
+            export IMAGE_TAG=${{ github.sha }}
+            docker-compose -f docker-compose.prod.yml pull
+            docker-compose -f docker-compose.prod.yml up -d --force-recreate
