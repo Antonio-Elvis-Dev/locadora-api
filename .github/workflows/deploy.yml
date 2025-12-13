@@ -101,27 +101,27 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           # Passamos as variáveis para criar o .env lá dentro
           envs: DB_USER,DB_PASSWORD,DB_NAME,DB_HOST,DB_PORT
-        env:
-          DB_USER: ${{ secrets.DB_USER }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          DB_NAME: ${{ secrets.DB_NAME }}
-          DB_HOST: "db"
-          DB_PORT: "5432"
-        script: |
-          cd /root/locadora-api
-          
-          # Recria o arquivo .env com as variáveis seguras
-          echo "DB_USER=$DB_USER" > .env
-          echo "DB_PASSWORD=$DB_PASSWORD" >> .env
-          echo "DB_NAME=$DB_NAME" >> .env
-          echo "DB_HOST=$DB_HOST" >> .env
-          echo "DB_PORT=$DB_PORT" >> .env
-          
-          # Baixa a versão mais recente da imagem do Docker Hub
-          docker-compose pull
-          
-          # Reinicia os containers (sem --build, pois usamos a imagem baixada)
-          docker-compose up -d --remove-orphans
-          
-          # Limpeza opcional de imagens antigas para não encher o disco
-          docker image prune -f
+          env:
+            DB_USER: ${{ secrets.DB_USER }}
+            DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+            DB_NAME: ${{ secrets.DB_NAME }}
+            DB_HOST: "db"
+            DB_PORT: "5432"
+          script: |
+            cd /root/locadora-api
+            
+            # Recria o arquivo .env com as variáveis seguras
+            echo "DB_USER=$DB_USER" > .env
+            echo "DB_PASSWORD=$DB_PASSWORD" >> .env
+            echo "DB_NAME=$DB_NAME" >> .env
+            echo "DB_HOST=$DB_HOST" >> .env
+            echo "DB_PORT=$DB_PORT" >> .env
+            
+            # Baixa a versão mais recente da imagem do Docker Hub
+            docker-compose pull
+            
+            # Reinicia os containers (sem --build, pois usamos a imagem baixada)
+            docker-compose up -d --remove-orphans
+            
+            # Limpeza opcional de imagens antigas para não encher o disco
+            docker image prune -f
