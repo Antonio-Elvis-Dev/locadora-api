@@ -1,9 +1,9 @@
-terraform {
-  backend "remote" {
-    organization = "elvis-locadora"
+# terraform {
+#   backend "remote" {
+#     organization = "elvis-locadora"
 
-    workspaces {
-      name = "locadora-api"
-    }
-  }
-}
+#     workspaces {
+#       name = "locadora-api"
+#     }
+#   }
+# }
