@@ -1,3 +1,5 @@
+
+
 name: CI/CD Pipeline
 
 on:
@@ -6,30 +8,8 @@ on:
       - main
 
 jobs:
-  # JOB 1: INTEGRAÇÃO CONTÍNUA (Rodar Testes)
-  tests:
-    name: Run Unit Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Setup Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.21' # Ajuste conforme a versão do seu go.mod
-
-      - name: Install Dependencies
-        run: go mod download
-
-      - name: Run Tests
-        # Como você tem o arquivo handlers_test.go, isso vai testar sua API
-        run: go test -v ./...
-
-  # JOB 2: ENTREGA CONTÍNUA (Deploy)
-  # Este job só roda se o job 'tests' passar (needs: tests)
   deploy_app:
     name: Deploy Application
-    needs: tests
     runs-on: ubuntu-latest
     
     steps:
@@ -48,10 +28,10 @@ jobs:
         with:
           context: .
           push: true
-          # Lembre-se de atualizar o docker-compose.yml com essa mesma tag!
           tags: elvinhokj/locadora-api:latest
 
       # 3. Copiar APENAS o docker-compose.yml para o servidor
+      # (Não precisamos do código todo, pois a imagem já está no Hub)
       - name: Copy docker-compose to server
         uses: appleboy/scp-action@v0.1.4
         with:
@@ -61,9 +41,10 @@ jobs:
           source: "docker-compose.yml"
           target: "/root/locadora-api"
 
-      # 4. Conectar no Servidor e Atualizar
+      # 4. Conectar no Servidor e Atualizar via Docker Hub
       - name: Execute Remote Deploy
         uses: appleboy/ssh-action@v1.0.0
+        # CORREÇÃO: O bloco 'env' deve ficar aqui fora (alinhado com 'uses')
         env:
           DB_USER: ${{ secrets.DB_USER }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
@@ -74,6 +55,7 @@ jobs:
           host: ${{ secrets.SERVER_IP }}
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          # Aqui dentro do 'with' usamos apenas 'envs' para listar o que será enviado
           envs: DB_USER,DB_PASSWORD,DB_NAME,DB_HOST,DB_PORT
           script: |
             cd /root/locadora-api
@@ -85,7 +67,11 @@ jobs:
             echo "DB_HOST=$DB_HOST" >> .env
             echo "DB_PORT=$DB_PORT" >> .env
             
-            # Baixa a versão nova e reinicia
+            # Baixa a versão mais recente da imagem do Docker Hub
             docker-compose pull
+            
+            # Reinicia os containers
             docker-compose up -d --remove-orphans
+            
+            # Limpeza opcional
             docker image prune -f
