@@ -95,18 +95,19 @@ jobs:
       # 4. Conectar no Servidor e Atualizar via Docker Hub
       - name: Execute Remote Deploy
         uses: appleboy/ssh-action@v1.0.0
+        # CORREÇÃO: O bloco 'env' deve ficar aqui fora (alinhado com 'uses')
+        env:
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_HOST: "db"
+          DB_PORT: "5432"
         with:
           host: ${{ secrets.SERVER_IP }}
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          # Passamos as variáveis para criar o .env lá dentro
+          # Aqui dentro do 'with' usamos apenas 'envs' para listar o que será enviado
           envs: DB_USER,DB_PASSWORD,DB_NAME,DB_HOST,DB_PORT
-          env:
-            DB_USER: ${{ secrets.DB_USER }}
-            DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-            DB_NAME: ${{ secrets.DB_NAME }}
-            DB_HOST: "db"
-            DB_PORT: "5432"
           script: |
             cd /root/locadora-api
             
@@ -120,8 +121,8 @@ jobs:
             # Baixa a versão mais recente da imagem do Docker Hub
             docker-compose pull
             
-            # Reinicia os containers (sem --build, pois usamos a imagem baixada)
+            # Reinicia os containers
             docker-compose up -d --remove-orphans
             
-            # Limpeza opcional de imagens antigas para não encher o disco
+            # Limpeza opcional
             docker image prune -f
